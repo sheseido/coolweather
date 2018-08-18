@@ -2,6 +2,8 @@ package com.coolweather.android;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.os.Build;
 import android.preference.PreferenceManager;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v4.widget.SwipeRefreshLayout;
@@ -65,6 +67,11 @@ public class WeatherActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if(Build.VERSION.SDK_INT>=21){
+            View decorView=getWindow().getDecorView();
+            decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+            getWindow().setStatusBarColor(Color.TRANSPARENT);
+        }
         setContentView(R.layout.activity_weather);
 
         // 初始化各控件
@@ -80,25 +87,36 @@ public class WeatherActivity extends AppCompatActivity {
         carWashText = (TextView) findViewById(R.id.car_wash_text);
         sportText = (TextView) findViewById(R.id.sport_text);
         bingPicImg=(ImageView) findViewById(R.id.bing_pic_img);
+        swipeRefresh=(SwipeRefreshLayout) findViewById(R.id.swipe_refresh);
+        swipeRefresh.setColorSchemeResources(R.color.colorPrimary);
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         String weatherString = prefs.getString("weather", null);
+        final  String weatherId;
         if(weatherString!=null){
             //有缓存直接解析天气数据
             Weather weather= Utility.handleWeatherResponse(weatherString);
+            weatherId=weather.basic.weatherId;
             showWeatherInfo(weather);
         }
         else{
             //无缓存去服务器查询天气
-            String weatherId=getIntent().getStringExtra("weather_id");
+            weatherId=getIntent().getStringExtra("weather_id");
             weatherLayout.setVisibility(View.INVISIBLE);
             requestWeather(weatherId);
         }
 
-        String bingPic=prefs.getString("bing_pic",null);
-        if(bingPic==null){
-            loadBinPic();
-        }else{
+        swipeRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                requestWeather(weatherId);
+            }
+        });
+
+        String bingPic = prefs.getString("bing_pic", null);
+        if (bingPic != null) {
             Glide.with(this).load(bingPic).into(bingPicImg);
+        } else {
+            loadBingPic();
         }
     }
 
@@ -183,8 +201,8 @@ public class WeatherActivity extends AppCompatActivity {
     }
 
 
-    private  void loadBinPic(){
-        String requestBingPic="Http://guolin/tech/api/bin_pic";
+    private  void loadBingPic(){
+        String requestBingPic="http://guolin.tech/api/bing_pic";
         HttpUtil.sendOkHttpRequest(requestBingPic, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
@@ -193,7 +211,7 @@ public class WeatherActivity extends AppCompatActivity {
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
-                final String bingPic=response.body().toString();
+                final String bingPic=response.body().string();
                 SharedPreferences.Editor editor=PreferenceManager.getDefaultSharedPreferences(WeatherActivity.this).edit();
                 editor.putString("bing_pic",bingPic);
                 editor.apply();
